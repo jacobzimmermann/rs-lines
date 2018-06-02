@@ -304,6 +304,7 @@ mod app {
 	use super::gtk::*;
 	use super::lines_area::*;
 
+	use std::cell::RefCell;
 	use std::collections::HashMap;
 	use std::ops::Deref;
 	use std::rc::Rc;
@@ -340,6 +341,7 @@ mod app {
 	struct LinesWindow {
 		window: ApplicationWindow,
 		lines_area: LinesAreaPtr,
+		modes_menu: RefCell<HashMap<&'static str, RadioMenuItem>>,
 	}
 	type LinesWindowPtr = Rc<LinesWindow>;
 
@@ -352,15 +354,21 @@ mod app {
 	}
 
 	trait ILinesWindow {
-		fn on_switch(&self, r: &RadioMenuItem);
+		fn set_mode(&self, mode: &str);
+		fn on_switch(&self, mode: &str);
 	}
 
 	impl ILinesWindow for LinesWindowPtr {
-		fn on_switch(&self, r: &RadioMenuItem) {
-			if r.get_active() {
-				let mode = MODES[r.get_label().unwrap().as_str()];
-				self.lines_area.set_mode(mode);
-			}
+		fn on_switch(&self, mode: &str) {
+			MODES.get(mode).map(|&m| self.lines_area.set_mode(m));
+		}
+
+		fn set_mode(&self, mode: &str) {
+			self.modes_menu
+				.borrow()
+				.get(mode)
+				.map(|m_item| m_item.set_active(true));
+			self.on_switch(mode);
 		}
 	}
 
@@ -369,6 +377,7 @@ mod app {
 			let lwin = LinesWindowPtr::new(LinesWindow {
 				window: ApplicationWindow::new(app),
 				lines_area: LinesArea::new(Mode::Lines),
+				modes_menu: RefCell::new(HashMap::new()),
 			});
 
 			lwin.set_default_size(super::DEFAULT_WIDTH as i32, super::DEFAULT_HEIGHT as i32);
@@ -382,39 +391,39 @@ mod app {
 			MenuButtonExt::set_direction(&mb, ArrowType::None);
 			let menu = Menu::new();
 
-			let mut mode_items = Vec::new();
-			let mut lines_pos: Option<usize> = None;
-			for k in MODES.keys() {
-				let m_item = RadioMenuItem::new_with_label(k);
-				m_item.show();
-				menu.append(&m_item);
+			// Here we borrow modes_menu mutably
+			{
+				let mut modes_menu = lwin.modes_menu.borrow_mut();
 
-				if lines_pos.is_none() {
-					match *k {
-						"Lines" => {
-							lines_pos = Some(mode_items.len());
+				for k in MODES.keys() {
+					let m_item = RadioMenuItem::new_with_label(k);
+					m_item.show();
+					menu.append(&m_item);
+					let wk_switch = Rc::downgrade(&lwin);
+					m_item.connect_toggled(move |m| {
+						if m.get_active() {
+							let mode = m.get_label().unwrap();
+							wk_switch
+								.upgrade()
+								.expect("switch pointer is nil")
+								.on_switch(&mode)
 						}
-						_ => {}
-					}
+					});
+					modes_menu.insert(k, m_item);
 				}
-
-				let winptr = Rc::clone(&lwin);
-				m_item.connect_toggled(move |m| winptr.on_switch(m));
-				mode_items.push(m_item);
-			}
-			for m in mode_items[1..].iter() {
-				m.join_group(Some(&mode_items[0]));
-			}
-			lines_pos.map(|p| mode_items[p].set_active(true));
+				for m in modes_menu.values() {
+					m.join_group(modes_menu.get("Lines"));
+				}
+			} // End of mutable borrowing of modes_menu
 
 			mb.set_popup(&menu);
 			hb.pack_end(&mb);
 			lwin.set_titlebar(Some(&hb));
 			lwin.add(&lwin.lines_area as &DrawingArea);
 
-			let time_la = Rc::clone(&lwin.lines_area);
+			let time_lwin = Rc::clone(&lwin);
 			timeout_add(super::PERIOD, move || {
-				time_la.add_line();
+				time_lwin.lines_area.add_line();
 				Continue(true)
 			});
 
