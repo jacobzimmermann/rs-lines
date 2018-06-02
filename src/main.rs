@@ -10,7 +10,7 @@ const DEFAULT_WIDTH: usize = 600;
 const DEFAULT_HEIGHT: usize = 600;
 const PERIOD: u32 = 20;
 const STEP: f64 = 10.0;
-const NUM_LINES: usize = 70;
+const NUM_LINES: usize = 64;
 const BLEND_STEPS: usize = 30;
 
 mod lines_area {
@@ -86,7 +86,7 @@ mod lines_area {
 	enum LinesObjType {
 		Line(f64, f64, f64, f64),
 		Triangle(f64, f64, f64, f64, f64, f64),
-		Curve(f64, f64, f64, f64, f64, f64),
+		Curve(f64, f64, f64, f64, f64, f64, f64, f64),
 	}
 
 	#[derive(Clone, Copy)]
@@ -120,9 +120,9 @@ mod lines_area {
 			)
 		}
 
-		fn curve(p0: &Point, p1: &Point, p2: &Point, a: f64, z: f64) -> LinesObj {
+		fn curve(p0: &Point, p1: &Point, p2: &Point, p3: &Point, a: f64, z: f64) -> LinesObj {
 			Self::new_for(
-				LinesObjType::Curve(p0.x, p0.y, p1.x, p1.y, p2.x, p2.y),
+				LinesObjType::Curve(p0.x, p0.y, p1.x, p1.y, p2.x, p2.y, p3.x, p3.y),
 				a,
 				z,
 			)
@@ -140,8 +140,9 @@ mod lines_area {
 					cr.line_to(x2, y2);
 					cr.close_path();
 				}
-				LinesObjType::Curve(x0, y0, x1, y1, x2, y2) => {
-					cr.curve_to(x0, y0, x1, y1, x2, y2);
+				LinesObjType::Curve(x0, y0, x1, y1, x2, y2, x3, y3) => {
+					cr.move_to(x0, y0);
+					cr.curve_to(x1, y1, x2, y2, x3, y3);
 				}
 			}
 			cr.stroke();
@@ -161,7 +162,7 @@ mod lines_area {
 		mode: Cell<Mode>,
 		lines: RefCell<[Option<LinesObj>; super::NUM_LINES]>,
 		ix: Cell<usize>,
-		pts: RefCell<(Point, Point, Point)>,
+		pts: RefCell<(Point, Point, Point, Point)>,
 
 		rng: RefCell<self::rand::ThreadRng>,
 
@@ -192,6 +193,7 @@ mod lines_area {
 					Point::new(0.0, h / 3.0, 0.1),
 					Point::new(w, h / 6.0, -0.22),
 					Point::new(w / 3.0, 0.0, 0.2),
+					Point::new(w / 3.0, h, -0.2),
 				)),
 
 				rng: RefCell::new(rng),
@@ -248,13 +250,14 @@ mod lines_area {
 			pts.0.step(w, h);
 			pts.1.step(w, h);
 			pts.2.step(w, h);
+			pts.3.step(w, h);
 
 			let ix = self.ix.get();
-			self.ix.set((ix + 1) % super::NUM_LINES);
+			self.ix.set((ix + 1) & (super::NUM_LINES - 1));
 			self.lines.borrow_mut()[ix] = Some(match self.mode.get() {
 				Mode::Lines => LinesObj::line(&pts.0, &pts.1, az.0, az.1),
 				Mode::Triangles => LinesObj::triangle(&pts.0, &pts.1, &pts.2, az.0, az.1),
-				Mode::Curves => LinesObj::curve(&pts.0, &pts.1, &pts.2, az.0, az.1),
+				Mode::Curves => LinesObj::curve(&pts.0, &pts.1, &pts.2, &pts.3, az.0, az.1),
 			});
 			self.queue_draw();
 		}
@@ -283,10 +286,10 @@ mod lines_area {
 			let lines = self.lines.borrow();
 			let mut ix = self.ix.get();
 			let last = ix;
-			ix = (ix + 1) % super::NUM_LINES;
+			ix = (ix + 1) & (super::NUM_LINES - 1);
 			while ix != last {
 				lines[ix].map(|l| l.draw(cr));
-				ix = (ix + 1) % super::NUM_LINES;
+				ix = (ix + 1) & (super::NUM_LINES - 1);
 			}
 
 			signal::Inhibit(false)
