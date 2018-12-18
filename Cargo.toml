@@ -2,6 +2,7 @@
 name = "lines"
 version = "0.1.0"
 authors = ["Jacob Zimmermann <ppa@jzimm.net>"]
+edition = "2018"
 
 [dependencies.gtk]
 version = "0.4.0"

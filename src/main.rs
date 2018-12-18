@@ -1,10 +1,7 @@
-extern crate gio;
-extern crate gtk;
-use gio::*;
-
-extern crate failure;
-#[macro_use]
-extern crate lazy_static;
+use gio;
+use gtk;
+use cairo;
+use rand;
 
 const DEFAULT_WIDTH: usize = 600;
 const DEFAULT_HEIGHT: usize = 600;
@@ -14,13 +11,9 @@ const NUM_LINES: usize = 64;
 const BLEND_STEPS: usize = 30;
 
 mod lines_area {
-	use super::gio::signal;
-	use super::gtk::{Allocation, DrawingArea, WidgetExt};
-
-	extern crate cairo;
-	extern crate rand;
-	use self::rand::Rng;
-
+	use rand::Rng;
+	use crate::gtk::*;
+	
 	use std::cell::{Cell, RefCell};
 	use std::f64::consts;
 	use std::ops::Deref;
@@ -33,12 +26,12 @@ mod lines_area {
 		a: f64,
 		da: f64,
 
-		rng: self::rand::ThreadRng,
+		rng: rand::ThreadRng,
 	}
 
 	impl Point {
 		fn new(x: f64, y: f64, a: f64) -> Point {
-			let rng = self::rand::thread_rng();
+			let rng = rand::thread_rng();
 			Point {
 				x: x,
 				y: y,
@@ -164,7 +157,7 @@ mod lines_area {
 		ix: Cell<usize>,
 		pts: RefCell<(Point, Point, Point, Point)>,
 
-		rng: RefCell<self::rand::ThreadRng>,
+		rng: RefCell<rand::ThreadRng>,
 
 		col_az: Cell<(f64, f64)>,
 		dcol_az: Cell<(f64, f64)>,
@@ -178,7 +171,7 @@ mod lines_area {
 		pub fn new(mode: Mode) -> LinesAreaPtr {
 			let w = super::DEFAULT_WIDTH as f64;
 			let h = super::DEFAULT_HEIGHT as f64;
-			let mut rng = self::rand::thread_rng();
+			let mut rng = rand::thread_rng();
 
 			let a = rng.gen_range(0.0, consts::FRAC_PI_2);
 			let z = rng.gen_range(0.0, consts::PI);
@@ -276,12 +269,12 @@ mod lines_area {
 	}
 
 	trait ILinesArea {
-		fn on_draw(&self, cr: &cairo::Context) -> signal::Inhibit;
+		fn on_draw(&self, cr: &cairo::Context) -> gio::signal::Inhibit;
 		fn on_size_allocate(&self, size: &Allocation);
 	}
 
 	impl ILinesArea for LinesAreaPtr {
-		fn on_draw(&self, cr: &cairo::Context) -> signal::Inhibit {
+		fn on_draw(&self, cr: &cairo::Context) -> gio::signal::Inhibit {
 			cr.set_line_width(1.0);
 			let lines = self.lines.borrow();
 			let mut ix = self.ix.get();
@@ -292,7 +285,7 @@ mod lines_area {
 				ix = (ix + 1) & (super::NUM_LINES - 1);
 			}
 
-			signal::Inhibit(false)
+			gio::signal::Inhibit(false)
 		}
 
 		fn on_size_allocate(&self, size: &Allocation) {
@@ -302,10 +295,10 @@ mod lines_area {
 }
 
 mod app {
-	use super::failure;
-	use super::gio::{ApplicationExt, ApplicationFlags};
-	use super::gtk::*;
-	use super::lines_area::*;
+	use crate::lines_area::*;
+	use crate::gtk::*;
+	use crate::gio::*;
+	use lazy_static::{__lazy_static_create, __lazy_static_internal, lazy_static};
 
 	use std::cell::RefCell;
 	use std::collections::HashMap;
@@ -376,7 +369,9 @@ mod app {
 	}
 
 	impl LinesWindow {
-		fn new(app: &super::gtk::Application) -> LinesWindowPtr {
+		fn new(app: &gtk::Application) -> LinesWindowPtr {
+			use crate::gtk::*;
+			
 			let lwin = LinesWindowPtr::new(LinesWindow {
 				window: ApplicationWindow::new(app),
 				lines_area: LinesArea::new(Mode::Lines),
@@ -392,7 +387,7 @@ mod app {
 
 			let mb = MenuButton::new();
 			MenuButtonExt::set_direction(&mb, ArrowType::None);
-			let menu = Menu::new();
+			let menu = gtk::Menu::new();
 
 			// Here we borrow modes_menu mutably
 			{
@@ -434,11 +429,11 @@ mod app {
 		}
 	}
 
-	pub struct Lines(super::gtk::Application);
+	pub struct Lines(gtk::Application);
 	pub type LinesPtr = Rc<Lines>;
 
 	impl Deref for Lines {
-		type Target = super::gtk::Application;
+		type Target = gtk::Application;
 
 		fn deref(&self) -> &Self::Target {
 			&self.0
@@ -452,8 +447,6 @@ mod app {
 
 	impl ILines for LinesPtr {
 		fn on_startup(&self) {
-			use super::gio::{ActionMapExt, MenuModel, SimpleAction, SimpleActionExt};
-
 			let act_quit = SimpleAction::new("quit", None);
 			let wk_quit = Rc::downgrade(&self);
 			act_quit.connect_activate(move |_, _| {
@@ -472,7 +465,7 @@ mod app {
 			self.add_action(&act_new_window);
 
 			let builder = Builder::new_from_string(APP_MENU);
-			let model: MenuModel = builder.get_object("appmenu").unwrap();
+			let model: gio::MenuModel = builder.get_object("appmenu").unwrap();
 			self.set_app_menu(&model);
 		}
 
@@ -487,7 +480,7 @@ mod app {
 
 		pub fn new() -> Result<LinesPtr, failure::Error> {
 			let gtk_app =
-				super::gtk::Application::new(Self::DBUS_PATH, ApplicationFlags::FLAGS_NONE)?;
+				gtk::Application::new(Self::DBUS_PATH, gio::ApplicationFlags::FLAGS_NONE)?;
 			let linesapp = LinesPtr::new(Lines(gtk_app));
 
 			let wk_startup = Rc::downgrade(&linesapp);
@@ -512,6 +505,7 @@ mod app {
 }
 
 fn main() -> Result<(), failure::Error> {
+	use gio::*;
 	use std::env;
 
 	app::Lines::new().map(|app| {
