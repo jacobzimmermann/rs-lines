@@ -386,6 +386,35 @@ mod app {
             }
         }
 
+		fn build_menu(lwin: &LinesWindowPtr) -> gtk::Menu {
+			use crate::gtk::*;
+			
+			let menu = gtk::Menu::new();
+            let mut modes_menu = lwin.modes_menu.borrow_mut();
+
+            for k in MODES.keys() {
+                let m_item = RadioMenuItem::new_with_label(k);
+                m_item.show();
+                menu.append(&m_item);
+                let wk_switch = Rc::downgrade(&lwin);
+                m_item.connect_toggled(move |m| {
+                    if m.get_active() {
+                        let mode = m.get_label().unwrap();
+                        wk_switch
+                            .upgrade()
+                            .expect("switch pointer is nil")
+                            .on_switch(&mode)
+                    }
+                });
+                modes_menu.insert(k, m_item);
+            }
+            for m in modes_menu.values() {
+                m.join_group(modes_menu.get("Lines"));
+            }
+
+			menu		
+		}
+
         fn get_new_ptr(app: &gtk::Application) -> LinesWindowPtr {
             use crate::gtk::*;
 
@@ -399,34 +428,9 @@ mod app {
 
             let mb = MenuButton::new();
             MenuButtonExt::set_direction(&mb, ArrowType::None);
-            let menu = gtk::Menu::new();
-
-            // Here we borrow modes_menu mutably
-            {
-                let mut modes_menu = lwin.modes_menu.borrow_mut();
-
-                for k in MODES.keys() {
-                    let m_item = RadioMenuItem::new_with_label(k);
-                    m_item.show();
-                    menu.append(&m_item);
-                    let wk_switch = Rc::downgrade(&lwin);
-                    m_item.connect_toggled(move |m| {
-                        if m.get_active() {
-                            let mode = m.get_label().unwrap();
-                            wk_switch
-                                .upgrade()
-                                .expect("switch pointer is nil")
-                                .on_switch(&mode)
-                        }
-                    });
-                    modes_menu.insert(k, m_item);
-                }
-                for m in modes_menu.values() {
-                    m.join_group(modes_menu.get("Lines"));
-                }
-            } // End of mutable borrowing of modes_menu
-
+            let menu = Self::build_menu(&lwin);
             mb.set_popup(&menu);
+
             hb.pack_end(&mb);
             lwin.set_titlebar(Some(&hb));
             lwin.add(&lwin.lines_area as &DrawingArea);
