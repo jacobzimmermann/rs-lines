@@ -1,20 +1,19 @@
 [package]
-name = "lines"
-version = "0.1.0"
+name = "rs-lines"
+version = "0.1.1"
 authors = ["Jacob Zimmermann <ppa@jzimm.net>"]
 edition = "2018"
 
 [dependencies.gtk]
-version = "0.4.0"
+version = "0.8.1"
 features = ["v3_18"]
 
 [dependencies]
-gio = "0.4.0"
-cairo-rs = "0.4.1"
-failure = "0.1.1"
-failure_derive = "0.1.1"
-rand = "0.5.0"
-lazy_static = "1.0.1"
+gio = "0.8.1"
+cairo-rs = "0.8.1"
+rand = "0.7.3"
+lazy_static = "1.4.0"
+glib = "0.9.3"
 
 [profile.release]
 panic = "abort"

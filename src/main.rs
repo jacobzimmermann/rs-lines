@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate glib;
+
 use cairo;
 use gio;
 use gtk;
@@ -12,7 +15,7 @@ const BLEND_STEPS: usize = 30;
 
 mod lines_area {
     use crate::gtk::*;
-    use rand::Rng;
+    use rand::prelude::*;
 
     use std::cell::{Cell, RefCell};
     use std::f64::consts;
@@ -26,7 +29,7 @@ mod lines_area {
         a: f64,
         da: f64,
 
-        rng: rand::ThreadRng,
+        rng: ThreadRng,
     }
 
     impl Point {
@@ -158,7 +161,7 @@ mod lines_area {
         ix: Cell<usize>,
         pts: RefCell<(Point, Point, Point, Point)>,
 
-        rng: RefCell<rand::ThreadRng>,
+        rng: RefCell<ThreadRng>,
 
         col_az: Cell<(f64, f64)>,
         dcol_az: Cell<(f64, f64)>,
@@ -273,12 +276,12 @@ mod lines_area {
     }
 
     trait ILinesArea {
-        fn on_draw(&self, cr: &cairo::Context) -> gio::signal::Inhibit;
+        fn on_draw(&self, cr: &cairo::Context) -> glib::signal::Inhibit;
         fn on_size_allocate(&self, size: &Allocation);
     }
 
     impl ILinesArea for LinesAreaPtr {
-        fn on_draw(&self, cr: &cairo::Context) -> gio::signal::Inhibit {
+        fn on_draw(&self, cr: &cairo::Context) -> glib::signal::Inhibit {
             cr.set_line_width(1.0);
             let lines = self.lines.borrow();
             let mut ix = self.ix.get();
@@ -291,7 +294,7 @@ mod lines_area {
                 ix = (ix + 1) & (super::NUM_LINES - 1);
             }
 
-            gio::signal::Inhibit(false)
+            glib::signal::Inhibit(false)
         }
 
         fn on_size_allocate(&self, size: &Allocation) {
@@ -386,10 +389,10 @@ mod app {
             }
         }
 
-		fn build_menu(lwin: &LinesWindowPtr) -> gtk::Menu {
-			use crate::gtk::*;
-			
-			let menu = gtk::Menu::new();
+        fn build_menu(lwin: &LinesWindowPtr) -> gtk::Menu {
+            use crate::gtk::*;
+
+            let menu = gtk::Menu::new();
             let mut modes_menu = lwin.modes_menu.borrow_mut();
 
             for k in MODES.keys() {
@@ -412,8 +415,8 @@ mod app {
                 m.join_group(modes_menu.get("Lines"));
             }
 
-			menu		
-		}
+            menu
+        }
 
         fn get_new_ptr(app: &gtk::Application) -> LinesWindowPtr {
             use crate::gtk::*;
@@ -423,13 +426,13 @@ mod app {
             lwin.set_resizable(true);
 
             let hb = HeaderBar::new();
-            hb.set_title("Lines");
+            hb.set_title(Some("Lines"));
             hb.set_show_close_button(true);
 
             let mb = MenuButton::new();
             MenuButtonExt::set_direction(&mb, ArrowType::None);
             let menu = Self::build_menu(&lwin);
-            mb.set_popup(&menu);
+            mb.set_popup(Some(&menu));
 
             hb.pack_end(&mb);
             lwin.set_titlebar(Some(&hb));
@@ -438,7 +441,7 @@ mod app {
             let time_lwin = Rc::clone(&lwin);
             timeout_add(super::PERIOD, move || {
                 time_lwin.lines_area.add_line();
-                Continue(true)
+                glib::Continue(true)
             });
 
             lwin
@@ -463,6 +466,8 @@ mod app {
 
     impl ILines for LinesPtr {
         fn on_startup(&self) {
+            use gtk::prelude::*;
+
             let act_quit = SimpleAction::new("quit", None);
             let wk_quit = Rc::downgrade(&self);
             act_quit.connect_activate(move |_, _| {
@@ -482,7 +487,7 @@ mod app {
 
             let builder = Builder::new_from_string(APP_MENU);
             let model: gio::MenuModel = builder.get_object("appmenu").unwrap();
-            self.set_app_menu(&model);
+            self.set_app_menu(Some(&model));
         }
 
         fn on_activate(&self) {
@@ -494,9 +499,9 @@ mod app {
     impl Lines {
         pub const DBUS_PATH: &'static str = "net.jzimm.lines";
 
-        pub fn initialise() -> Result<LinesPtr, failure::Error> {
+        pub fn initialise() -> Result<LinesPtr, glib::BoolError> {
             let gtk_app =
-                gtk::Application::new(Self::DBUS_PATH, gio::ApplicationFlags::FLAGS_NONE)?;
+                gtk::Application::new(Some(Self::DBUS_PATH), gio::ApplicationFlags::FLAGS_NONE)?;
             let linesapp = LinesPtr::new(Lines(gtk_app));
 
             let wk_startup = Rc::downgrade(&linesapp);
@@ -520,8 +525,8 @@ mod app {
     }
 }
 
-fn main() -> Result<(), failure::Error> {
-    use gio::*;
+fn main() -> Result<(), glib::BoolError> {
+    use gio::prelude::*;
     use std::env;
 
     app::Lines::initialise().map(|app| {
