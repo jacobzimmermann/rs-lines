@@ -20,7 +20,7 @@ lazy_static! {
 
 pub struct LinesWindow {
     window: gtk::ApplicationWindow,
-    lines_area: LinesAreaPtr,
+  //  lines_area: LinesAreaPtr,
     modes_menu: RefCell<HashMap<&'static str, gtk::RadioMenuItem>>,
 }
 type LinesWindowPtr = Rc<LinesWindow>;
@@ -40,9 +40,9 @@ trait ILinesWindow {
 
 impl ILinesWindow for LinesWindowPtr {
     fn on_switch(&self, mode: &str) {
-        if let Some(&m) = MODES.get(mode) {
+  /*      if let Some(&m) = MODES.get(mode) {
             self.lines_area.set_mode(m);
-        }
+        }*/
     }
 
     fn set_mode(&self, mode: &str) {
@@ -57,7 +57,7 @@ impl LinesWindow {
     fn new(app: &gtk::Application) -> Self {
         LinesWindow {
             window: gtk::ApplicationWindow::new(app),
-            lines_area: LinesArea::get_new_ptr(Mode::Lines),
+      //      lines_area: LinesArea::get_new_ptr(Mode::Lines),
             modes_menu: RefCell::new(HashMap::new()),
         }
     }
@@ -110,13 +110,13 @@ impl LinesWindow {
 
         hb.pack_end(&mb);
         lwin.set_titlebar(Some(&hb));
-        lwin.add(&lwin.lines_area as &gtk::DrawingArea);
-
+      //  lwin.add(&lwin.lines_area as &gtk::DrawingArea);
+/*
         let time_lwin = Rc::clone(&lwin);
         timeout_add(lines_area::PERIOD, move || {
             time_lwin.lines_area.add_line();
             glib::Continue(true)
-        });
+        });*/
 
         lwin
     }

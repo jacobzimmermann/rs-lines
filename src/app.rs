@@ -1,8 +1,10 @@
 use gio::prelude::*;
+use gio::subclass::prelude::*;
 use gtk::prelude::*;
+use gtk::subclass::prelude::*;
 
-use std::ops::Deref;
-use std::rc::Rc;
+use glib;
+use glib::translate::*;
 
 const APP_MENU: &str = "
         <interface>
@@ -23,78 +25,80 @@ const APP_MENU: &str = "
         </interface>
     ";
 
-pub struct Lines(gtk::Application);
-pub type LinesPtr = Rc<Lines>;
+mod private {
+    use super::*;
+    pub struct LinesApp;
 
-impl Deref for Lines {
-    type Target = gtk::Application;
+    impl ObjectSubclass for LinesApp {
+        const NAME: &'static str = "LinesApp";
+        type ParentType = gtk::Application;
+        type Instance = glib::subclass::simple::InstanceStruct<Self>;
+        type Class = glib::subclass::simple::ClassStruct<Self>;
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
+        glib_object_subclass!();
+
+        fn new() -> Self {
+            Self
+        }
+    }
+
+    impl ObjectImpl for LinesApp {
+        glib_object_impl!();
+    }
+
+    impl ApplicationImpl for LinesApp {}
+
+    impl GtkApplicationImpl for LinesApp {}
+}
+
+glib_wrapper! {
+    pub struct LinesApp(Object<
+        private::LinesApp,
+        LinesAppClass
+    >) @extends gtk::Application, gio::Application;
+
+    match fn {
+        get_type => || private::LinesApp::get_type().to_glib(),
     }
 }
 
-trait ILines {
-    fn on_startup(&self);
-    fn on_activate(&self);
-}
+impl LinesApp {
+    pub const DBUS_PATH: &'static str = "net.jzimm.rs-lines";
 
-impl ILines for LinesPtr {
+    pub fn new() -> Result<Self, glib::Error> {
+        gtk::init().expect("Failed to initialise GTK");
+        let obj = glib::Object::new(Self::static_type(), &[]).expect("Instantiation error");
+        let app = obj.downcast::<Self>().expect("LinesApp downcast error");
+
+        app.connect_startup(clone!(@weak app => @default-panic, move |_| app.on_startup()));
+        app.connect_activate(clone!(@weak app => @default-panic, move |_| app.on_activate()));
+
+        app.set_application_id(Some(&Self::DBUS_PATH));
+        app.set_flags(gio::ApplicationFlags::default());
+        app.register(gio::Cancellable::get_current().as_ref())?;
+
+        Ok(app)
+    }
+
     fn on_startup(&self) {
-        use gtk::prelude::*;
+        let app = self.upcast_ref::<gtk::Application>();
 
         let act_quit = gio::SimpleAction::new("quit", None);
-        let wk_quit = Rc::downgrade(&self);
-        act_quit.connect_activate(move |_, _| {
-            wk_quit.upgrade().expect("quit pointer is nil").quit()
-        });
-        self.add_action(&act_quit);
+        act_quit.connect_activate(clone!(@weak app => @default-panic, move |_,_| app.quit()));
+        app.add_action(&act_quit);
 
         let act_new_window = gio::SimpleAction::new("new_window", None);
-        let wk_new_window = Rc::downgrade(&self);
-        act_new_window.connect_activate(move |_, _| {
-            wk_new_window
-                .upgrade()
-                .expect("new_window pointer is nil")
-                .activate()
-        });
-        self.add_action(&act_new_window);
+        act_new_window
+            .connect_activate(clone!(@weak app => @default-panic, move |_,_| app.activate()));
+        app.add_action(&act_new_window);
 
         let builder = gtk::Builder::new_from_string(APP_MENU);
         let model: gio::MenuModel = builder.get_object("appmenu").unwrap();
-        self.set_app_menu(Some(&model));
+        app.set_app_menu(Some(&model));
     }
 
     fn on_activate(&self) {
-        let w = crate::window::LinesWindow::get_new_ptr(&self);
-        w.show_all();
-    }
-}
-
-impl Lines {
-    pub const DBUS_PATH: &'static str = "net.jzimm.lines";
-
-    pub fn initialise() -> Result<LinesPtr, glib::BoolError> {
-        let gtk_app =
-            gtk::Application::new(Some(Self::DBUS_PATH), gio::ApplicationFlags::FLAGS_NONE)?;
-        let linesapp = LinesPtr::new(Lines(gtk_app));
-
-        let wk_startup = Rc::downgrade(&linesapp);
-        linesapp.connect_startup(move |_| {
-            wk_startup
-                .upgrade()
-                .expect("startup pointer is nil")
-                .on_startup()
-        });
-
-        let wk_activate = Rc::downgrade(&linesapp);
-        linesapp.connect_activate(move |_| {
-            wk_activate
-                .upgrade()
-                .expect("activate pointer is nil")
-                .on_activate()
-        });
-
-        Ok(linesapp)
+        let win = crate::window::LinesWindow::get_new_ptr(self.upcast_ref());
+        win.show_all();
     }
 }
