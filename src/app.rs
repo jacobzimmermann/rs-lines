@@ -6,25 +6,6 @@ use gtk::subclass::prelude::*;
 use glib;
 use glib::translate::*;
 
-const APP_MENU: &str = "
-        <interface>
-            <menu id=\"appmenu\">
-                <section>
-                    <item>
-                        <attribute name=\"label\" translatable=\"yes\">New Window</attribute>
-                        <attribute name=\"action\">app.new_window</attribute>
-                    </item>
-                </section>
-                <section>
-                    <item>
-                        <attribute name=\"label\" translatable=\"yes\">Quit</attribute>
-                        <attribute name=\"action\">app.quit</attribute>
-                    </item>
-                </section>
-            </menu>
-        </interface>
-    ";
-
 const DBUS_PATH: &'static str = "net.jzimm.rs-lines";
 
 pub struct LinesAppPrivate;
@@ -92,10 +73,6 @@ impl LinesApp {
         act_new_window
             .connect_activate(clone!(@weak app => @default-panic, move |_,_| app.activate()));
         app.add_action(&act_new_window);
-
-        let builder = gtk::Builder::new_from_string(APP_MENU);
-        let model: gio::MenuModel = builder.get_object("appmenu").unwrap();
-        app.set_app_menu(Some(&model));
     }
 
     fn on_activate(&self) {
