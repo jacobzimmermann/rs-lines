@@ -99,7 +99,10 @@ impl LinesApp {
     }
 
     fn on_activate(&self) {
-        let win = crate::window::LinesWindow::get_new_ptr(self.upcast_ref());
+        use crate::window::*;
+        
+        let win = LinesWindow::new();
+        self.add_window(&win);
         win.show_all();
     }
 }

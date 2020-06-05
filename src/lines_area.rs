@@ -16,7 +16,7 @@ const DEFAULT_BLEND: u32 = 16;
 const DEFAULT_NUM_LINES: u32 = 64;
 const MAX_NUM_LINES: u32 = 256;
 
-static PROPERTIES: [Property; 3] = [
+static PROPERTIES: [Property; 4] = [
     Property("step", |name| {
         ParamSpec::uint(
             name,
@@ -50,6 +50,15 @@ static PROPERTIES: [Property; 3] = [
             ParamFlags::READWRITE,
         )
     }),
+    Property("mode", |name| {
+        ParamSpec::string(
+            name,
+            "Mode",
+            "Drawing Mode",
+            Some("Lines"),
+            ParamFlags::READWRITE,
+        )
+    }),
 ];
 
 #[derive(Copy, Clone)]
@@ -63,9 +72,9 @@ impl From<Mode> for &'static str {
     fn from(m: Mode) -> Self {
         use Mode::*;
         match m {
-            Lines => "lines",
-            Triangles => "triangles",
-            Curves => "curves",
+            Lines => "Lines",
+            Triangles => "Triangles",
+            Curves => "Curves",
         }
     }
 }
@@ -74,9 +83,9 @@ impl From<&str> for Mode {
     fn from(s: &str) -> Self {
         use Mode::*;
         match s {
-            "lines" => Lines,
-            "trianges" => Triangles,
-            "curves" => Curves,
+            "Lines" => Lines,
+            "Triangles" => Triangles,
+            "Curves" => Curves,
             _ => unimplemented!(),
         }
     }
