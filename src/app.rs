@@ -25,59 +25,60 @@ const APP_MENU: &str = "
         </interface>
     ";
 
-mod private {
-    use super::*;
-    pub struct LinesApp;
+const DBUS_PATH: &'static str = "net.jzimm.rs-lines";
 
-    impl ObjectSubclass for LinesApp {
-        const NAME: &'static str = "LinesApp";
-        type ParentType = gtk::Application;
-        type Instance = glib::subclass::simple::InstanceStruct<Self>;
-        type Class = glib::subclass::simple::ClassStruct<Self>;
+pub struct LinesAppPrivate;
 
-        glib_object_subclass!();
+impl ObjectSubclass for LinesAppPrivate {
+    const NAME: &'static str = "LinesApp";
+    type ParentType = gtk::Application;
+    type Instance = glib::subclass::simple::InstanceStruct<Self>;
+    type Class = glib::subclass::simple::ClassStruct<Self>;
 
-        fn new() -> Self {
-            Self
-        }
+    glib_object_subclass!();
+
+    fn new() -> Self {
+        Self
     }
-
-    impl ObjectImpl for LinesApp {
-        glib_object_impl!();
-    }
-
-    impl ApplicationImpl for LinesApp {}
-
-    impl GtkApplicationImpl for LinesApp {}
 }
+
+impl ObjectImpl for LinesAppPrivate {
+    glib_object_impl!();
+
+    fn constructed(&self, obj: &glib::Object) {
+        self.parent_constructed(obj);
+
+        let app = obj.downcast_ref::<LinesApp>().unwrap();
+        app.connect_startup(clone!(@weak app => @default-panic, move |_| app.on_startup()));
+        app.connect_activate(clone!(@weak app => @default-panic, move |_| app.on_activate()));
+
+        app.set_application_id(Some(&DBUS_PATH));
+        app.set_flags(gio::ApplicationFlags::default());
+        app.register(gio::Cancellable::get_current().as_ref())
+            .expect("LinesApp registration failed");
+    }
+}
+
+impl ApplicationImpl for LinesAppPrivate {}
+
+impl GtkApplicationImpl for LinesAppPrivate {}
 
 glib_wrapper! {
     pub struct LinesApp(Object<
-        private::LinesApp,
-        LinesAppClass
+        LinesAppPrivate,
+        LinesAppPrivateClass
     >) @extends gtk::Application, gio::Application;
 
     match fn {
-        get_type => || private::LinesApp::get_type().to_glib(),
+        get_type => || LinesAppPrivate::get_type().to_glib(),
     }
 }
 
 impl LinesApp {
-    pub const DBUS_PATH: &'static str = "net.jzimm.rs-lines";
-
-    pub fn new() -> Result<Self, glib::Error> {
-        gtk::init().expect("Failed to initialise GTK");
-        let obj = glib::Object::new(Self::static_type(), &[]).expect("Instantiation error");
-        let app = obj.downcast::<Self>().expect("LinesApp downcast error");
-
-        app.connect_startup(clone!(@weak app => @default-panic, move |_| app.on_startup()));
-        app.connect_activate(clone!(@weak app => @default-panic, move |_| app.on_activate()));
-
-        app.set_application_id(Some(&Self::DBUS_PATH));
-        app.set_flags(gio::ApplicationFlags::default());
-        app.register(gio::Cancellable::get_current().as_ref())?;
-
-        Ok(app)
+    pub fn new() -> Self {
+        let obj =
+            glib::Object::new(Self::static_type(), &[]).expect("LinesApp instantiation error");
+        obj.downcast::<Self>().expect("LinesApp downcast error")
     }
 
     fn on_startup(&self) {
